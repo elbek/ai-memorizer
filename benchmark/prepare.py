@@ -6,7 +6,6 @@ import random
 from collections import defaultdict
 from pathlib import Path
 
-import pyarrow.compute as pc
 import soundfile as sf
 from datasets import Audio, load_dataset
 from tqdm import tqdm
@@ -65,18 +64,6 @@ def _process_buraaq(output_dir: Path, n_samples: int) -> list[dict]:
     return _process_dataset(ds, output_dir, "buraaq", "ayah_ar", "reciter_id",
                             "surah_id", "ayah_id")
 
-
-def _process_retasy(output_dir: Path, n_samples: int) -> list[dict]:
-    """Process RetaSy/quranic_audio_dataset (correct only)."""
-    ds = load_dataset("RetaSy/quranic_audio_dataset", split="train")
-    # Filter using Arrow table directly to avoid decoding corrupt audio
-    mask = pc.equal(ds.data.column("final_label"), "correct")
-    correct_indices = [i for i, v in enumerate(mask) if v.as_py()]
-    ds = ds.select(correct_indices)
-    ds = ds.cast_column("audio", Audio(sampling_rate=16000))
-    ds = ds.shuffle(seed=42).select(range(min(n_samples, len(ds))))
-    return _process_dataset(ds, output_dir, "retasy", "Aya", "reciter_id",
-                            "Surah", None)
 
 
 def _row_to_record(row: dict, tusers_dir: Path) -> dict | None:
@@ -149,14 +136,12 @@ def run_prepare(output_dir: str, max_samples: int,
         eval_recs, val_recs, test_recs = _split_tusers(tusers_path)
 
         n_tusers = min(int(max_samples * 0.5), len(eval_recs))
-        n_tarteel = int(max_samples * 0.25)
-        n_buraaq = int(max_samples * 0.2)
-        n_retasy = max_samples - n_tusers - n_tarteel - n_buraaq
+        n_tarteel = int(max_samples * 0.3)
+        n_buraaq = max_samples - n_tusers - n_tarteel
 
         records.extend(eval_recs[:n_tusers])
         records.extend(_process_tarteel(out, n_tarteel))
         records.extend(_process_buraaq(out, n_buraaq))
-        records.extend(_process_retasy(out, n_retasy))
 
         # Write val/test manifests for fine-tuning
         for name, recs in [("manifest_val", val_recs), ("manifest_test", test_recs)]:
@@ -166,12 +151,10 @@ def run_prepare(output_dir: str, max_samples: int,
                     f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             print(f"  {name}: {len(recs)} samples -> {path}")
     else:
-        n_tarteel = int(max_samples * 0.4)
-        n_buraaq = int(max_samples * 0.4)
-        n_retasy = max_samples - n_tarteel - n_buraaq
+        n_tarteel = int(max_samples * 0.5)
+        n_buraaq = max_samples - n_tarteel
         records.extend(_process_tarteel(out, n_tarteel))
         records.extend(_process_buraaq(out, n_buraaq))
-        records.extend(_process_retasy(out, n_retasy))
 
     manifest_path = out / "manifest.jsonl"
     with open(manifest_path, "w", encoding="utf-8") as f:
