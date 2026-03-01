@@ -28,22 +28,26 @@ def run_report(results_dir, data_dir):
     results_path = Path(results_dir)
     pred_files = sorted(results_path.glob("*_predictions.jsonl"))
 
+    if not pred_files:
+        print("No prediction files found.")
+        return
+
     all_results = {}
 
     for pred_file in pred_files:
         model_name = pred_file.stem.replace("_predictions", "")
         preds = _load_predictions(pred_file)
 
-        refs = [p["ref"] for p in preds]
-        hyps = [p["hyp"] for p in preds]
+        refs = [p["reference"] for p in preds]
+        hyps = [p["hypothesis"] for p in preds]
 
         overall = compute_metrics(refs, hyps)
 
         # Group by source
         by_source = defaultdict(lambda: {"refs": [], "hyps": []})
         for p in preds:
-            by_source[p["source"]]["refs"].append(p["ref"])
-            by_source[p["source"]]["hyps"].append(p["hyp"])
+            by_source[p["source"]]["refs"].append(p["reference"])
+            by_source[p["source"]]["hyps"].append(p["hypothesis"])
 
         per_source = {}
         for source, data in sorted(by_source.items()):
@@ -66,8 +70,8 @@ def run_report(results_dir, data_dir):
         ("cer", "CER"),
         ("d_wer", "D-WER"),
         ("d_cer", "D-CER"),
-        ("harakat_acc", "Harakat Acc."),
-        ("samples", "Samples"),
+        ("harakat_accuracy", "Harakat Acc."),
+        ("num_samples", "Samples"),
     ]
 
     lines = []
@@ -83,7 +87,7 @@ def run_report(results_dir, data_dir):
         row = f"| {label} |"
         for model in models:
             val = all_results[model]["overall"][key]
-            if key == "samples":
+            if key == "num_samples":
                 row += f" {val} |"
             else:
                 row += f" {_format_pct(val)} |"
@@ -101,7 +105,7 @@ def run_report(results_dir, data_dir):
             row = f"| {source}"
             for key, _ in metric_keys:
                 val = metrics[key]
-                if key == "samples":
+                if key == "num_samples":
                     row += f" | {val}"
                 else:
                     row += f" | {_format_pct(val)}"
