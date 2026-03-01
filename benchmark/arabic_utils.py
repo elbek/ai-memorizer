@@ -27,6 +27,20 @@ _ALEF_VARIANTS = {
 }
 _ALEF_PATTERN = re.compile("[" + "".join(_ALEF_VARIANTS.keys()) + "]")
 
+# Uthmani Quran script marks that have no pronunciation effect —
+# these appear in Quran references but ASR models output standard Arabic.
+_QURAN_MARKS = re.compile(
+    "["
+    "\u0640"    # TATWEEL (kashida)
+    "\u06DC"    # SMALL HIGH SEEN
+    "\u06DF"    # SMALL HIGH ROUNDED ZERO
+    "\u06E2"    # SMALL HIGH MEEM ISOLATED FORM
+    "\u06E5"    # SMALL WAW
+    "\u06E6"    # SMALL YEH
+    "\u06ED"    # SMALL LOW MEEM
+    "]"
+)
+
 # Punctuation to remove
 _PUNCTUATION_PATTERN = re.compile(r"[.،؟!:؛]")
 
@@ -39,19 +53,35 @@ def strip_tashkeel(text: str) -> str:
     return _TASHKEEL_PATTERN.sub("", text)
 
 
+def normalize_quran_text(text: str) -> str:
+    """Normalize Uthmani Quran script to standard Arabic for fair comparison.
+
+    Strips Quran-specific typographic marks, normalizes alef variants and
+    superscript alef, but preserves tashkeel (diacritical marks).
+    """
+    text = _QURAN_MARKS.sub("", text)
+    text = _ALEF_PATTERN.sub("\u0627", text)
+    # Superscript alef (U+0670) → regular alef when standalone,
+    # but it's a combining mark so just remove it (the base alef is already there)
+    text = text.replace("\u0670", "")
+    text = _PUNCTUATION_PATTERN.sub("", text)
+    text = _WHITESPACE_PATTERN.sub(" ", text).strip()
+    return text
+
+
 def normalize_arabic(text: str) -> str:
-    """Normalize Arabic text for comparison.
+    """Normalize Arabic text for de-diacritized comparison.
 
     Steps:
     1. Strip tashkeel (diacritical marks)
-    2. Remove tatweel (kashida)
+    2. Strip Quran-specific marks
     3. Normalize alef variants to plain alef
     4. Convert teh marbuta to heh
     5. Remove punctuation
     6. Collapse whitespace and strip
     """
     text = strip_tashkeel(text)
-    text = text.replace("\u0640", "")  # tatweel
+    text = _QURAN_MARKS.sub("", text)
     text = _ALEF_PATTERN.sub("\u0627", text)
     text = text.replace("\u0629", "\u0647")  # teh marbuta -> heh
     text = _PUNCTUATION_PATTERN.sub("", text)

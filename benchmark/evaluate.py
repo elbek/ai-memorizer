@@ -6,9 +6,9 @@ from pathlib import Path
 from tqdm import tqdm
 
 
-def _load_manifest(data_dir: str) -> list[dict]:
-    """Load manifest.jsonl from data_dir, return list of dicts."""
-    manifest_path = Path(data_dir) / "manifest.jsonl"
+def _load_manifest(data_dir: str, manifest: str | None = None) -> list[dict]:
+    """Load manifest JSONL. Uses explicit path if given, else data_dir/manifest.jsonl."""
+    manifest_path = Path(manifest) if manifest else Path(data_dir) / "manifest.jsonl"
     records = []
     with open(manifest_path, encoding="utf-8") as f:
         for line in f:
@@ -126,9 +126,10 @@ def _run_whisper(manifest: list[dict], output_path: Path, batch_size: int) -> No
                 f.write(json.dumps(prediction, ensure_ascii=False) + "\n")
 
 
-def run_evaluate(model: str, data_dir: str, output_dir: str, batch_size: int) -> None:
+def run_evaluate(model: str, data_dir: str, output_dir: str, batch_size: int,
+                 manifest_path: str | None = None) -> None:
     """Dispatch evaluation to the appropriate model runner."""
-    manifest = _load_manifest(data_dir)
+    manifest = _load_manifest(data_dir, manifest_path)
     out = Path(output_dir)
 
     if model == "nemo":

@@ -2,7 +2,7 @@
 
 import re
 import jiwer
-from benchmark.arabic_utils import strip_tashkeel, normalize_arabic
+from benchmark.arabic_utils import strip_tashkeel, normalize_arabic, normalize_quran_text
 
 # Same tashkeel pattern from arabic_utils for extracting diacritics
 _TASHKEEL_RE = re.compile(
@@ -104,6 +104,10 @@ def compute_metrics(
             "harakat_accuracy": 1.0,
             "num_samples": 0,
         }
+
+    # Normalize Quran-specific Unicode in both ref and hyp before all comparisons
+    filtered_refs = [normalize_quran_text(r) for r in filtered_refs]
+    filtered_hyps = [normalize_quran_text(h) for h in filtered_hyps]
 
     # Replace empty hypotheses with a placeholder so jiwer doesn't crash
     safe_hyps = [h if h.strip() else "\u200B" for h in filtered_hyps]

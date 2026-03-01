@@ -73,6 +73,10 @@ examples:
         "--batch-size", type=int, default=8,
         help="Inference batch size (default: 8). Lower if running out of memory.",
     )
+    ev.add_argument(
+        "--manifest",
+        help="Path to a custom manifest JSONL (overrides data-dir/manifest.jsonl)",
+    )
 
     # report
     rep = subparsers.add_parser(
@@ -130,7 +134,8 @@ examples:
 
     elif args.command == "evaluate":
         from benchmark.evaluate import run_evaluate
-        run_evaluate(args.model, args.data_dir, args.output_dir, args.batch_size)
+        run_evaluate(args.model, args.data_dir, args.output_dir, args.batch_size,
+                     getattr(args, 'manifest', None))
 
     elif args.command == "report":
         from benchmark.report import run_report
