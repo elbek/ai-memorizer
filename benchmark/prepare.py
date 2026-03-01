@@ -2,6 +2,8 @@
 
 import csv
 import json
+import random
+from collections import defaultdict
 from pathlib import Path
 
 import pyarrow.compute as pc
@@ -77,42 +79,60 @@ def _process_retasy(output_dir: Path, n_samples: int) -> list[dict]:
                             "Surah", None)
 
 
-def _process_tusers(output_dir: Path, tusers_dir: Path,
-                    n_samples: int) -> list[dict]:
-    """Process local tusers dataset from CSV + WAV files."""
-    csv_path = tusers_dir / "tusers_filtered.csv"
-    wav_dir = tusers_dir / "wav"
-    records = []
-    skipped = 0
+def _row_to_record(row: dict, tusers_dir: Path) -> dict | None:
+    """Convert a tusers CSV row to a manifest record."""
+    wav_path = tusers_dir / row["wav_filename"]
+    if not wav_path.exists():
+        return None
+    parts = wav_path.stem.split("_")
+    return {
+        "audio_path": str(wav_path),
+        "text": row["transcript"],
+        "source": "tusers",
+        "reciter": parts[2] if len(parts) >= 3 else "",
+        "surah": int(parts[0]) if len(parts) >= 1 else None,
+        "ayah": int(parts[1]) if len(parts) >= 2 else None,
+    }
 
+
+def _split_tusers(tusers_dir: Path) -> tuple[list[dict], list[dict], list[dict]]:
+    """Split tusers by user ID: 70% eval, 15% val, 15% test."""
+    csv_path = tusers_dir / "tusers_filtered.csv"
     with open(csv_path, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
-    # Limit samples
-    rows = rows[:n_samples]
+    user_rows = defaultdict(list)
+    for row in rows:
+        user_id = Path(row["wav_filename"]).stem.split("_")[2]
+        user_rows[user_id].append(row)
 
-    for row in tqdm(rows, desc="tusers"):
-        wav_path = tusers_dir / row["wav_filename"]
-        if not wav_path.exists():
-            skipped += 1
-            continue
-        # Parse surah_ayah_userid from filename
-        parts = wav_path.stem.split("_")
-        surah = int(parts[0]) if len(parts) >= 1 else None
-        ayah = int(parts[1]) if len(parts) >= 2 else None
-        reciter = parts[2] if len(parts) >= 3 else ""
-        records.append({
-            "audio_path": str(wav_path),
-            "text": row["transcript"],
-            "source": "tusers",
-            "reciter": reciter,
-            "surah": surah,
-            "ayah": ayah,
-        })
+    users = list(user_rows.keys())
+    random.seed(42)
+    random.shuffle(users)
 
-    if skipped:
-        print(f"  tusers: skipped {skipped} missing WAV files")
-    return records
+    n_eval = int(len(users) * 0.7)
+    n_val = int(len(users) * 0.15)
+    eval_users = users[:n_eval]
+    val_users = users[n_eval:n_eval + n_val]
+    test_users = users[n_eval + n_val:]
+
+    def collect(user_list):
+        recs = []
+        for uid in user_list:
+            for row in user_rows[uid]:
+                rec = _row_to_record(row, tusers_dir)
+                if rec:
+                    recs.append(rec)
+        return recs
+
+    return collect(eval_users), collect(val_users), collect(test_users)
+
+
+def _process_tusers(output_dir: Path, tusers_dir: Path,
+                    n_samples: int) -> list[dict]:
+    """Process local tusers dataset from CSV + WAV files (eval split only)."""
+    eval_recs, _, _ = _split_tusers(tusers_dir)
+    return eval_recs[:n_samples]
 
 
 def run_prepare(output_dir: str, max_samples: int,
@@ -126,14 +146,25 @@ def run_prepare(output_dir: str, max_samples: int,
     if tusers_dir:
         # When tusers is provided, use it as primary source
         tusers_path = Path(tusers_dir)
-        n_tusers = int(max_samples * 0.5)
+        eval_recs, val_recs, test_recs = _split_tusers(tusers_path)
+
+        n_tusers = min(int(max_samples * 0.5), len(eval_recs))
         n_tarteel = int(max_samples * 0.25)
         n_buraaq = int(max_samples * 0.2)
         n_retasy = max_samples - n_tusers - n_tarteel - n_buraaq
-        records.extend(_process_tusers(out, tusers_path, n_tusers))
+
+        records.extend(eval_recs[:n_tusers])
         records.extend(_process_tarteel(out, n_tarteel))
         records.extend(_process_buraaq(out, n_buraaq))
         records.extend(_process_retasy(out, n_retasy))
+
+        # Write val/test manifests for fine-tuning
+        for name, recs in [("manifest_val", val_recs), ("manifest_test", test_recs)]:
+            path = out / f"{name}.jsonl"
+            with open(path, "w", encoding="utf-8") as f:
+                for rec in recs:
+                    f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            print(f"  {name}: {len(recs)} samples -> {path}")
     else:
         n_tarteel = int(max_samples * 0.4)
         n_buraaq = int(max_samples * 0.4)
