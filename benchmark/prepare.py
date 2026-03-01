@@ -3,8 +3,9 @@
 import json
 from pathlib import Path
 
+import numpy as np
 import soundfile as sf
-from datasets import load_dataset
+from datasets import Audio, load_dataset
 from tqdm import tqdm
 
 
@@ -17,6 +18,7 @@ def _save_audio(audio, path: Path) -> None:
 def _process_tarteel(output_dir: Path, n_samples: int) -> list[dict]:
     """Process tarteel-ai/everyayah dataset."""
     ds = load_dataset("tarteel-ai/everyayah", split="test")
+    ds = ds.cast_column("audio", Audio(sampling_rate=16000))
     ds = ds.select(range(min(n_samples, len(ds))))
 
     records = []
@@ -38,6 +40,7 @@ def _process_tarteel(output_dir: Path, n_samples: int) -> list[dict]:
 def _process_buraaq(output_dir: Path, n_samples: int) -> list[dict]:
     """Process Buraaq/quran-md-ayahs dataset."""
     ds = load_dataset("Buraaq/quran-md-ayahs", split="train")
+    ds = ds.cast_column("audio", Audio(sampling_rate=16000))
     ds = ds.shuffle(seed=42).select(range(min(n_samples, len(ds))))
 
     records = []
@@ -59,6 +62,7 @@ def _process_buraaq(output_dir: Path, n_samples: int) -> list[dict]:
 def _process_retasy(output_dir: Path, n_samples: int) -> list[dict]:
     """Process RetaSy/quranic_audio_dataset (correct only)."""
     ds = load_dataset("RetaSy/quranic_audio_dataset", split="train")
+    ds = ds.cast_column("audio", Audio(sampling_rate=16000))
     ds = ds.filter(lambda x: x["final_label"] == "correct")
     ds = ds.shuffle(seed=42).select(range(min(n_samples, len(ds))))
 
