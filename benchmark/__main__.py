@@ -44,6 +44,10 @@ examples:
         help="Max total samples across all sources (default: 10000). "
         "Split 40%% tarteel / 40%% buraaq / 20%% retasy.",
     )
+    prep.add_argument(
+        "--tusers-dir",
+        help="Path to local tusers dataset directory (contains tusers_filtered.csv + wav/)",
+    )
 
     # evaluate
     ev = subparsers.add_parser(
@@ -113,12 +117,16 @@ examples:
         choices=["nemo", "funasr"],
         help="Models to evaluate (default: both)",
     )
+    ra.add_argument(
+        "--tusers-dir",
+        help="Path to local tusers dataset directory",
+    )
 
     args = parser.parse_args()
 
     if args.command == "prepare":
         from benchmark.prepare import run_prepare
-        run_prepare(args.output_dir, args.max_samples)
+        run_prepare(args.output_dir, args.max_samples, args.tusers_dir)
 
     elif args.command == "evaluate":
         from benchmark.evaluate import run_evaluate
@@ -136,7 +144,8 @@ examples:
         print("=" * 60)
         print("Step 1/3: Preparing datasets")
         print("=" * 60)
-        run_prepare(args.data_dir, args.max_samples)
+        run_prepare(args.data_dir, args.max_samples,
+                    getattr(args, 'tusers_dir', None))
 
         for model in args.models:
             print()

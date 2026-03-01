@@ -1,5 +1,6 @@
 """Download and prepare Quran audio datasets into a unified manifest."""
 
+import csv
 import json
 from pathlib import Path
 
@@ -76,19 +77,70 @@ def _process_retasy(output_dir: Path, n_samples: int) -> list[dict]:
                             "Surah", None)
 
 
-def run_prepare(output_dir: str, max_samples: int) -> None:
+def _process_tusers(output_dir: Path, tusers_dir: Path,
+                    n_samples: int) -> list[dict]:
+    """Process local tusers dataset from CSV + WAV files."""
+    csv_path = tusers_dir / "tusers_filtered.csv"
+    wav_dir = tusers_dir / "wav"
+    records = []
+    skipped = 0
+
+    with open(csv_path, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    # Limit samples
+    rows = rows[:n_samples]
+
+    for row in tqdm(rows, desc="tusers"):
+        wav_path = tusers_dir / row["wav_filename"]
+        if not wav_path.exists():
+            skipped += 1
+            continue
+        # Parse surah_ayah_userid from filename
+        parts = wav_path.stem.split("_")
+        surah = int(parts[0]) if len(parts) >= 1 else None
+        ayah = int(parts[1]) if len(parts) >= 2 else None
+        reciter = parts[2] if len(parts) >= 3 else ""
+        records.append({
+            "audio_path": str(wav_path),
+            "text": row["transcript"],
+            "source": "tusers",
+            "reciter": reciter,
+            "surah": surah,
+            "ayah": ayah,
+        })
+
+    if skipped:
+        print(f"  tusers: skipped {skipped} missing WAV files")
+    return records
+
+
+def run_prepare(output_dir: str, max_samples: int,
+                tusers_dir: str | None = None) -> None:
     """Download datasets, save audio as WAV, and write unified manifest."""
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    n_tarteel = int(max_samples * 0.4)
-    n_buraaq = int(max_samples * 0.4)
-    n_retasy = max_samples - n_tarteel - n_buraaq
-
     records = []
-    records.extend(_process_tarteel(out, n_tarteel))
-    records.extend(_process_buraaq(out, n_buraaq))
-    records.extend(_process_retasy(out, n_retasy))
+
+    if tusers_dir:
+        # When tusers is provided, use it as primary source
+        tusers_path = Path(tusers_dir)
+        n_tusers = int(max_samples * 0.5)
+        n_tarteel = int(max_samples * 0.25)
+        n_buraaq = int(max_samples * 0.2)
+        n_retasy = max_samples - n_tusers - n_tarteel - n_buraaq
+        records.extend(_process_tusers(out, tusers_path, n_tusers))
+        records.extend(_process_tarteel(out, n_tarteel))
+        records.extend(_process_buraaq(out, n_buraaq))
+        records.extend(_process_retasy(out, n_retasy))
+    else:
+        n_tarteel = int(max_samples * 0.4)
+        n_buraaq = int(max_samples * 0.4)
+        n_retasy = max_samples - n_tarteel - n_buraaq
+        records.extend(_process_tarteel(out, n_tarteel))
+        records.extend(_process_buraaq(out, n_buraaq))
+        records.extend(_process_retasy(out, n_retasy))
 
     manifest_path = out / "manifest.jsonl"
     with open(manifest_path, "w", encoding="utf-8") as f:
