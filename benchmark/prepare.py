@@ -22,10 +22,16 @@ def _process_tarteel(output_dir: Path, n_samples: int) -> list[dict]:
     ds = ds.select(range(min(n_samples, len(ds))))
 
     records = []
+    skipped = 0
     audio_dir = output_dir / "audio" / "tarteel"
     for i, row in enumerate(tqdm(ds, desc="tarteel")):
         path = audio_dir / f"{i:06d}.wav"
-        _save_audio(row["audio"], path)
+        try:
+            _save_audio(row["audio"], path)
+        except (RuntimeError, Exception) as e:
+            skipped += 1
+            tqdm.write(f"  skipping tarteel sample {i}: {e}")
+            continue
         records.append({
             "audio_path": str(path),
             "text": row["text"],
@@ -34,6 +40,8 @@ def _process_tarteel(output_dir: Path, n_samples: int) -> list[dict]:
             "surah": None,
             "ayah": None,
         })
+    if skipped:
+        print(f"  tarteel: skipped {skipped} corrupt samples")
     return records
 
 
@@ -44,10 +52,16 @@ def _process_buraaq(output_dir: Path, n_samples: int) -> list[dict]:
     ds = ds.shuffle(seed=42).select(range(min(n_samples, len(ds))))
 
     records = []
+    skipped = 0
     audio_dir = output_dir / "audio" / "buraaq"
     for i, row in enumerate(tqdm(ds, desc="buraaq")):
         path = audio_dir / f"{i:06d}.wav"
-        _save_audio(row["audio"], path)
+        try:
+            _save_audio(row["audio"], path)
+        except (RuntimeError, Exception) as e:
+            skipped += 1
+            tqdm.write(f"  skipping buraaq sample {i}: {e}")
+            continue
         records.append({
             "audio_path": str(path),
             "text": row["ayah_ar"],
@@ -56,6 +70,8 @@ def _process_buraaq(output_dir: Path, n_samples: int) -> list[dict]:
             "surah": row.get("surah_id"),
             "ayah": row.get("ayah_id"),
         })
+    if skipped:
+        print(f"  buraaq: skipped {skipped} corrupt samples")
     return records
 
 
@@ -67,10 +83,16 @@ def _process_retasy(output_dir: Path, n_samples: int) -> list[dict]:
     ds = ds.shuffle(seed=42).select(range(min(n_samples, len(ds))))
 
     records = []
+    skipped = 0
     audio_dir = output_dir / "audio" / "retasy"
     for i, row in enumerate(tqdm(ds, desc="retasy")):
         path = audio_dir / f"{i:06d}.wav"
-        _save_audio(row["audio"], path)
+        try:
+            _save_audio(row["audio"], path)
+        except (RuntimeError, Exception) as e:
+            skipped += 1
+            tqdm.write(f"  skipping retasy sample {i}: {e}")
+            continue
         records.append({
             "audio_path": str(path),
             "text": row["Aya"],
@@ -79,6 +101,8 @@ def _process_retasy(output_dir: Path, n_samples: int) -> list[dict]:
             "surah": row.get("Surah"),
             "ayah": None,
         })
+    if skipped:
+        print(f"  retasy: skipped {skipped} corrupt samples")
     return records
 
 
