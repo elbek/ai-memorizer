@@ -58,7 +58,7 @@ examples:
         "funasr (FunASR MLT-Nano multilingual).",
     )
     ev.add_argument(
-        "--model", required=True, choices=["nemo", "funasr"],
+        "--model", required=True, choices=["nemo", "funasr", "whisper"],
         help="Model to evaluate: nemo or funasr",
     )
     ev.add_argument(
@@ -113,8 +113,8 @@ examples:
         help="Inference batch size (default: 8)",
     )
     ra.add_argument(
-        "--models", nargs="+", default=["nemo", "funasr"],
-        choices=["nemo", "funasr"],
+        "--models", nargs="+", default=["nemo", "whisper"],
+        choices=["nemo", "funasr", "whisper"],
         help="Models to evaluate (default: both)",
     )
     ra.add_argument(
