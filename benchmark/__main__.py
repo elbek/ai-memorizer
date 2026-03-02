@@ -58,7 +58,7 @@ examples:
         "funasr (FunASR MLT-Nano multilingual).",
     )
     ev.add_argument(
-        "--model", required=True, choices=["nemo", "funasr", "whisper"],
+        "--model", required=True, choices=["nemo", "funasr", "whisper", "parakeet", "qwen3"],
         help="Model to evaluate: nemo or funasr",
     )
     ev.add_argument(
@@ -76,6 +76,11 @@ examples:
     ev.add_argument(
         "--manifest",
         help="Path to a custom manifest JSONL (overrides data-dir/manifest.jsonl)",
+    )
+    ev.add_argument(
+        "--model-id",
+        help="HuggingFace model ID (required for --model whisper, "
+        "e.g. tarteel-ai/whisper-base-ar-quran)",
     )
 
     # report
@@ -118,7 +123,7 @@ examples:
     )
     ra.add_argument(
         "--models", nargs="+", default=["nemo", "whisper"],
-        choices=["nemo", "funasr", "whisper"],
+        choices=["nemo", "funasr", "whisper", "parakeet", "qwen3"],
         help="Models to evaluate (default: both)",
     )
     ra.add_argument(
@@ -134,8 +139,11 @@ examples:
 
     elif args.command == "evaluate":
         from benchmark.evaluate import run_evaluate
+        if args.model == "whisper" and not args.model_id:
+            parser.error("--model-id is required when --model is whisper")
         run_evaluate(args.model, args.data_dir, args.output_dir, args.batch_size,
-                     getattr(args, 'manifest', None))
+                     getattr(args, 'manifest', None),
+                     model_id=getattr(args, 'model_id', None))
 
     elif args.command == "report":
         from benchmark.report import run_report
